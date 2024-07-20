@@ -1,24 +1,42 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-
+from multihead_selfattention import MultiHeadAttention
+from feedforwardlayer import FeedForward
 
 class BigramLanguageModel(nn.Module):
 
-    def __init__(self, vocab_size):
+    def __init__(self, vocab_size, emb_size=256, block_size=64, num_heads = 16):
         super(BigramLanguageModel, self).__init__()
         # Each token directly reads off the logits for the next token from a lookup table
-        self.embedding_size = vocab_size
+        self.embedding_size = emb_size
+        self.vocab_size = vocab_size
+        self.block_size = block_size
+        self.num_heads = num_heads
         self.token_embedding_table = nn.Embedding(vocab_size, self.embedding_size)
+        self.position_embedding_table = nn.Embedding(self.block_size, self.embedding_size)
+        self.multi_head_attention = MultiHeadAttention(embedding_size=self.embedding_size, num_heads=self.num_heads,
+                                                       context_length=self.block_size)
+        self.feed_forward = FeedForward(self.embedding_size)
+        self.lm_head = nn.Linear(self.embedding_size, self.vocab_size)
 
     def forward(self, idx):
-        # idx and targets are both (B, T) tensor of integers.
+        # idx is (B, T) tensor of integers.
         # Now every single integer (token) in idx is mapped to corresponding embedding according to index of
         # the given sample token in the vocabulary.
-        logits = self.token_embedding_table(idx) # (Batch , Time (Sequence Length), C (Embedding Size))
+        token_emb = self.token_embedding_table(idx)
+        # (Batch , Time (Sequence Length), C (Embedding Size))
+        pos_emb = self.position_embedding_table(torch.arange(0, self.block_size, device=torch.device("cuda")))
+        x = token_emb + pos_emb
+        x = self.multi_head_attention(x)
+        x = self.feed_forward(x)
+        logits = self.lm_head(x)  # outputs (Batch, Time (Sequence Length), Vocab Size)
+
         return logits
+
 
 if __name__ == "__main__":
     bigram_model = BigramLanguageModel(65)
-    out = bigram_model(torch.randint(0, 65, (8,128)))
-    print(out.shape) # Now we got vocab size length embeddings for every (8,128) positions in the input sample.
+    device = torch.device("cuda")
+    bigram_model.to(device)
+    out = bigram_model(torch.randint(0, 65, (8, 64), device = torch.device("cuda")))
+    print(out.shape)  # Now we got vocab size length embeddings for every (8,128) positions in the input sample.
