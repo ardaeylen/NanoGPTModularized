@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
-from multihead_selfattention import MultiHeadAttention
-from feedforwardlayer import FeedForward
+from Block import Block
 
 class BigramLanguageModel(nn.Module):
 
@@ -14,9 +13,10 @@ class BigramLanguageModel(nn.Module):
         self.num_heads = num_heads
         self.token_embedding_table = nn.Embedding(vocab_size, self.embedding_size)
         self.position_embedding_table = nn.Embedding(self.block_size, self.embedding_size)
-        self.multi_head_attention = MultiHeadAttention(embedding_size=self.embedding_size, num_heads=self.num_heads,
-                                                       context_length=self.block_size)
-        self.feed_forward = FeedForward(self.embedding_size)
+        self.blocks = nn.Sequential(
+            Block(self.embedding_size, self.num_heads, self.block_size), 
+            Block(self.embedding_size, self.num_heads, self.block_size), 
+            Block(self.embedding_size, self.num_heads, self.block_size))
         self.lm_head = nn.Linear(self.embedding_size, self.vocab_size)
 
     def forward(self, idx):
@@ -27,8 +27,7 @@ class BigramLanguageModel(nn.Module):
         # (Batch , Time (Sequence Length), C (Embedding Size))
         pos_emb = self.position_embedding_table(torch.arange(0, self.block_size, device=torch.device("cuda")))
         x = token_emb + pos_emb
-        x = self.multi_head_attention(x)
-        x = self.feed_forward(x)
+        x = self.blocks(x)
         logits = self.lm_head(x)  # outputs (Batch, Time (Sequence Length), Vocab Size)
 
         return logits

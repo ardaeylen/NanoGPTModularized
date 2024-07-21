@@ -13,7 +13,10 @@ class MultiHeadAttention(nn.Module):
         self.head_size = self.embedding_size // self.num_heads
         self.heads = nn.ModuleList([SelfAttentionKarpathy(embedding_size=embedding_size, head_size=self.head_size,
                                                           context_length=self.context_length) for _ in range(self.num_heads)])
+        self.proj = nn.Linear(embedding_size, embedding_size)
 
     def forward(self, x):
         # Simply calculate multiple attentions in parallel and concatenate the result in embedding dimension.
-        return torch.cat([head(x) for head in self.heads], dim = -1)
+        x = torch.cat([head(x) for head in self.heads], dim = -1)
+        x = self.proj(x)
+        return x
