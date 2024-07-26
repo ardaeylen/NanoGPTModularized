@@ -4,13 +4,14 @@ from feedforwardlayer import FeedForward
 import torch
 
 class Block(nn.Module):
-    def __init__(self, embedding_size, num_heads, context_len):
+    def __init__(self, embedding_size, num_heads, context_len, dropout):
         super(Block, self).__init__()
         self.embedding_size = embedding_size
         self.num_heads = num_heads
         self.context_len = context_len
-        self.multihead_self_attention = MultiHeadAttention(embedding_size = self.embedding_size, num_heads = self.num_heads, context_length = self.context_len)
-        self.feed_forward = FeedForward(emb_size = self.embedding_size)
+        self.dropout = dropout
+        self.multihead_self_attention = MultiHeadAttention(embedding_size = self.embedding_size, num_heads = self.num_heads, context_length = self.context_len, dropout_rate=self.dropout)
+        self.feed_forward = FeedForward(emb_size = self.embedding_size, dropout_rate = self.dropout)
         # This layer norm actually is a per token normalization which normalizes every token
         # along it's embedding dimension instead of batch dimension in Batch Normalization. Of
         # course layer norm has gamma and beta trainable parameters the layer norm will eventually

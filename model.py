@@ -4,19 +4,19 @@ from Block import Block
 
 class BigramLanguageModel(nn.Module):
 
-    def __init__(self, vocab_size, emb_size=256, block_size=64, num_heads = 16):
+    def __init__(self, vocab_size, n_layer, emb_size=256, block_size=64, num_heads = 16, dropout_rate = 0.2):
         super(BigramLanguageModel, self).__init__()
         # Each token directly reads off the logits for the next token from a lookup table
         self.embedding_size = emb_size
         self.vocab_size = vocab_size
         self.block_size = block_size
         self.num_heads = num_heads
+        self.layer_num = n_layer
+        self.dropout = dropout_rate
         self.token_embedding_table = nn.Embedding(vocab_size, self.embedding_size)
         self.position_embedding_table = nn.Embedding(self.block_size, self.embedding_size)
-        self.blocks = nn.Sequential(
-            Block(self.embedding_size, self.num_heads, self.block_size), 
-            Block(self.embedding_size, self.num_heads, self.block_size), 
-            Block(self.embedding_size, self.num_heads, self.block_size))
+        self.blocks = nn.Sequential(*[Block(self.embedding_size, self.num_heads, self.block_size, self.dropout) for _ in range(self.layer_num)])
+        self.layer_norm = nn.LayerNorm(normalized_shape=self.embedding_size) # Final layer norm.
         self.lm_head = nn.Linear(self.embedding_size, self.vocab_size)
 
     def forward(self, idx):
@@ -28,13 +28,14 @@ class BigramLanguageModel(nn.Module):
         pos_emb = self.position_embedding_table(torch.arange(0, self.block_size, device=torch.device("cuda")))
         x = token_emb + pos_emb
         x = self.blocks(x)
+        x = self.layer_norm(x)
         logits = self.lm_head(x)  # outputs (Batch, Time (Sequence Length), Vocab Size)
 
         return logits
 
 
 if __name__ == "__main__":
-    bigram_model = BigramLanguageModel(65)
+    bigram_model = BigramLanguageModel(vocab_size = 65, n_layer = 3)
     device = torch.device("cuda")
     bigram_model.to(device)
     out = bigram_model(torch.randint(0, 65, (8, 64), device = torch.device("cuda")))
